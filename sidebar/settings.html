@@ -1,0 +1,58 @@
+<div id="tab-settings" class="tab-content">
+  <div class="section-header">
+    <h2>Settings</h2>
+  </div>
+
+  <!-- Throttle Delay -->
+  <div class="form-group">
+    <label>Throttle Delay (seconds between emails)</label>
+    <div class="range-group">
+      <input type="range" id="throttle-delay" min="0" max="10" value="2" oninput="document.getElementById('throttle-value').textContent = this.value + 's'" />
+      <span class="range-value" id="throttle-value">2s</span>
+    </div>
+  </div>
+
+  <!-- Tracking Toggles -->
+  <div class="form-group">
+    <label>Tracking</label>
+    <div class="card" style="padding: 4px 12px;">
+      <div class="toggle-row">
+        <span class="toggle-label">Open tracking</span>
+        <label class="toggle">
+          <input type="checkbox" id="open-tracking" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">Click tracking</span>
+        <label class="toggle">
+          <input type="checkbox" id="click-tracking" checked />
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reply-To -->
+  <div class="form-group">
+    <label>Reply-To</label>
+    <input type="text" id="reply-to" placeholder="reply@example.com (optional)" />
+  </div>
+
+  <!-- Default CC -->
+  <div class="form-group">
+    <label>Default CC</label>
+    <input type="text" id="default-cc" placeholder="cc@example.com (optional)" />
+  </div>
+
+  <!-- Default BCC -->
+  <div class="form-group">
+    <label>Default BCC</label>
+    <input type="text" id="default-bcc" placeholder="bcc@example.com (optional)" />
+  </div>
+
+  <!-- Save Button -->
+  <div style="margin-top: 16px;">
+    <button class="btn btn-primary" onclick="saveSettingsForm()" style="width: 100%;">Save Settings</button>
+  </div>
+</div>

@@ -1,0 +1,92 @@
+<div id="tab-dashboard" class="tab-content">
+  <!-- Campaign Selector -->
+  <div class="form-group">
+    <label>Campaign</label>
+    <select id="campaign-select" onchange="loadCampaignData(this.value)">
+      <option value="">Select a campaign...</option>
+    </select>
+  </div>
+
+  <!-- Stats Content (shown when campaign selected) -->
+  <div id="dashboard-content" class="hidden">
+    <!-- Summary Stat Cards -->
+    <div class="stats-grid">
+      <div class="stat-card stat-sent">
+        <div class="stat-number" id="stat-sent">0</div>
+        <div class="stat-label">Total Sent</div>
+      </div>
+      <div class="stat-card stat-opens">
+        <div class="stat-number" id="stat-opens">0</div>
+        <div class="stat-percent" id="stat-opens-pct">0%</div>
+        <div class="stat-label">Opens</div>
+      </div>
+      <div class="stat-card stat-clicks">
+        <div class="stat-number" id="stat-clicks">0</div>
+        <div class="stat-percent" id="stat-clicks-pct">0%</div>
+        <div class="stat-label">Clicks</div>
+      </div>
+      <div class="stat-card stat-bounces">
+        <div class="stat-number" id="stat-bounces">0</div>
+        <div class="stat-percent" id="stat-bounces-pct">0%</div>
+        <div class="stat-label">Bounces</div>
+      </div>
+    </div>
+
+    <!-- Bar Chart -->
+    <div class="chart-section">
+      <h3>Performance</h3>
+      <div class="bar-chart">
+        <div class="bar-row">
+          <span class="bar-label">Opens</span>
+          <div class="bar-track">
+            <div class="bar-fill bar-fill-opens" id="bar-opens" style="width:0%"></div>
+          </div>
+          <span class="bar-value" id="bar-opens-val">0%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">Clicks</span>
+          <div class="bar-track">
+            <div class="bar-fill bar-fill-clicks" id="bar-clicks" style="width:0%"></div>
+          </div>
+          <span class="bar-value" id="bar-clicks-val">0%</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">Bounces</span>
+          <div class="bar-track">
+            <div class="bar-fill bar-fill-bounces" id="bar-bounces" style="width:0%"></div>
+          </div>
+          <span class="bar-value" id="bar-bounces-val">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recipient Table -->
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Opens</th>
+            <th>Clicks</th>
+            <th>Last Activity</th>
+          </tr>
+        </thead>
+        <tbody id="recipient-table-body">
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex-between">
+      <button class="btn btn-secondary btn-sm" onclick="refreshDashboard()">Refresh</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportCsv()">Export CSV</button>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div id="dashboard-empty" class="empty-state">
+    <div class="empty-icon">&#128202;</div>
+    <p>No campaigns yet.<br>Send your first campaign to see stats here.</p>
+  </div>
+</div>

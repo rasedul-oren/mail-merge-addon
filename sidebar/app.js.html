@@ -1,0 +1,639 @@
+<script>
+  /* ===================================================
+   * Mail Merge Add-on — Client-side Application
+   * =================================================== */
+
+  // ───── State Management ─────
+  var state = {
+    activeTab: 'compose',
+    composeData: {
+      subject: '',
+      body: '',
+      campaignName: '',
+      attachments: []
+    },
+    selectedCampaignId: null,
+    mergeFieldTarget: null   // 'subject' or 'body'
+  };
+
+  // ───── Tab Management ─────
+  function switchTab(tabName) {
+    // Hide all tab content
+    document.querySelectorAll('.tab-content').forEach(function(el) {
+      el.classList.remove('active');
+    });
+    // Deactivate all tab buttons
+    document.querySelectorAll('.tab-bar button').forEach(function(btn) {
+      btn.classList.remove('active');
+    });
+    // Show target tab
+    var target = document.getElementById('tab-' + tabName);
+    if (target) target.classList.add('active');
+    // Activate tab button
+    var btn = document.querySelector('.tab-bar button[data-tab="' + tabName + '"]');
+    if (btn) btn.classList.add('active');
+
+    state.activeTab = tabName;
+
+    // Lazy-load tab data
+    if (tabName === 'compose') {
+      loadMergeFields();
+      loadRecipientCount();
+      loadFromEmail();
+    } else if (tabName === 'dashboard') {
+      loadCampaigns();
+    } else if (tabName === 'templates') {
+      loadTemplates();
+    } else if (tabName === 'settings') {
+      loadSettings();
+    }
+  }
+
+  // ───── Server Communication Helpers ─────
+  function callServer(functionName) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function(resolve, reject) {
+      var runner = google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(reject);
+      runner[functionName].apply(runner, args);
+    });
+  }
+
+  function showToast(message, type) {
+    type = type || 'info';
+    var container = document.getElementById('toast-container');
+    var toast = document.createElement('div');
+    toast.className = 'toast toast-' + type;
+    toast.textContent = message;
+    container.appendChild(toast);
+    setTimeout(function() {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 3000);
+  }
+
+  function showLoading(element) {
+    if (!element) return;
+    element.dataset.originalContent = element.innerHTML;
+    element.innerHTML = '<div class="loading-overlay"><div class="spinner"></div><span>Loading...</span></div>';
+    element.classList.add('is-loading');
+  }
+
+  function hideLoading(element) {
+    if (!element || !element.dataset.originalContent) return;
+    element.innerHTML = element.dataset.originalContent;
+    delete element.dataset.originalContent;
+    element.classList.remove('is-loading');
+  }
+
+  // ───── Compose Functions ─────
+  function loadFromEmail() {
+    callServer('getUserEmail').then(function(email) {
+      document.getElementById('from-email').textContent = email || 'Unknown';
+    }).catch(function() {
+      document.getElementById('from-email').textContent = 'Could not load';
+    });
+  }
+
+  function loadMergeFields() {
+    callServer('getColumnHeaders').then(function(headers) {
+      var list = document.getElementById('merge-fields-list');
+      if (!headers || headers.length === 0) {
+        list.innerHTML = '<div class="merge-field-item" style="color:var(--text-secondary)">No columns found in sheet</div>';
+        return;
+      }
+      list.innerHTML = '';
+      headers.forEach(function(field) {
+        var item = document.createElement('div');
+        item.className = 'merge-field-item';
+        item.innerHTML = field + ' <code>{{' + field + '}}</code>';
+        item.onclick = function() {
+          insertMergeField(field);
+        };
+        list.appendChild(item);
+      });
+    }).catch(function(err) {
+      console.error('Failed to load merge fields:', err);
+    });
+  }
+
+  function insertMergeField(fieldName) {
+    var tag = '{{' + fieldName + '}}';
+    if (state.mergeFieldTarget === 'subject') {
+      var input = document.getElementById('email-subject');
+      var start = input.selectionStart || input.value.length;
+      input.value = input.value.slice(0, start) + tag + input.value.slice(start);
+      input.focus();
+      input.setSelectionRange(start + tag.length, start + tag.length);
+    } else {
+      // Insert into contenteditable body
+      var editor = document.getElementById('email-body');
+      editor.focus();
+      document.execCommand('insertText', false, tag);
+    }
+    hideMergeFieldPicker();
+  }
+
+  function showMergeFieldPicker(target) {
+    state.mergeFieldTarget = target;
+    var picker = document.getElementById('merge-field-picker');
+    picker.classList.remove('hidden');
+    // Close on outside click
+    setTimeout(function() {
+      document.addEventListener('click', closeMergePickerOutside);
+    }, 10);
+  }
+
+  function hideMergeFieldPicker() {
+    document.getElementById('merge-field-picker').classList.add('hidden');
+    document.removeEventListener('click', closeMergePickerOutside);
+  }
+
+  function closeMergePickerOutside(e) {
+    var picker = document.getElementById('merge-field-picker');
+    if (!picker.contains(e.target) && !e.target.closest('.merge-btn') && !e.target.closest('.btn-icon')) {
+      hideMergeFieldPicker();
+    }
+  }
+
+  function loadRecipientCount() {
+    callServer('getRecipientCount').then(function(count) {
+      document.getElementById('recipient-count').textContent = count + ' recipient' + (count !== 1 ? 's' : '') + ' in sheet';
+    }).catch(function() {
+      document.getElementById('recipient-count').textContent = 'Could not load';
+    });
+  }
+
+  function handleAttachment(event) {
+    var files = event.target.files;
+    for (var i = 0; i < files.length; i++) {
+      (function(file) {
+        var reader = new FileReader();
+        reader.onload = function(e) {
+          var base64 = e.target.result.split(',')[1];
+          state.composeData.attachments.push({
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            data: base64
+          });
+          renderAttachments();
+        };
+        reader.readAsDataURL(file);
+      })(files[i]);
+    }
+    // Reset input so same file can be re-added
+    event.target.value = '';
+  }
+
+  function removeAttachment(index) {
+    state.composeData.attachments.splice(index, 1);
+    renderAttachments();
+  }
+
+  function renderAttachments() {
+    var container = document.getElementById('attachment-list');
+    if (state.composeData.attachments.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+    var html = '';
+    state.composeData.attachments.forEach(function(att, i) {
+      html += '<div class="attachment-chip">'
+        + '<span class="chip-name">' + escapeHtml(att.name) + '</span>'
+        + '<button class="chip-remove" onclick="removeAttachment(' + i + ')" title="Remove">&times;</button>'
+        + '</div>';
+    });
+    container.innerHTML = html;
+  }
+
+  function getComposePayload() {
+    return {
+      campaignName: document.getElementById('campaign-name').value,
+      subject: document.getElementById('email-subject').value,
+      body: document.getElementById('email-body').innerHTML,
+      attachments: state.composeData.attachments
+    };
+  }
+
+  function previewEmail() {
+    var payload = getComposePayload();
+    if (!payload.subject && !payload.body) {
+      showToast('Please enter a subject or body first.', 'error');
+      return;
+    }
+    callServer('previewMergedEmail', payload).then(function(preview) {
+      showModal('Email Preview', '<div style="border:1px solid var(--border);border-radius:var(--radius);padding:12px;"><p style="margin:0 0 8px;font-weight:600;">Subject: ' + escapeHtml(preview.subject) + '</p><hr style="border:none;border-top:1px solid var(--border);margin:8px 0;">' + preview.body + '</div>');
+    }).catch(function(err) {
+      showToast('Preview failed: ' + err.message, 'error');
+    });
+  }
+
+  function sendTest() {
+    var payload = getComposePayload();
+    if (!payload.subject) {
+      showToast('Please enter a subject.', 'error');
+      return;
+    }
+    callServer('sendTestEmail', payload).then(function() {
+      showToast('Test email sent!', 'success');
+    }).catch(function(err) {
+      showToast('Test failed: ' + err.message, 'error');
+    });
+  }
+
+  function sendAll() {
+    var payload = getComposePayload();
+    if (!payload.subject) {
+      showToast('Please enter a subject.', 'error');
+      return;
+    }
+    showModal('Confirm Send', '<p>Send this campaign to <strong>all recipients</strong> in the sheet?</p>', [
+      { label: 'Cancel', type: 'secondary', action: 'closeModal()' },
+      { label: 'Send All', type: 'primary', action: 'confirmSendAll()' }
+    ]);
+  }
+
+  function confirmSendAll() {
+    closeModal();
+    startSendProgress();
+    var payload = getComposePayload();
+    callServer('sendCampaign', payload, false).then(function(result) {
+      hideSendProgress();
+      showToast('Campaign sent to ' + result.sent + ' recipients!', 'success');
+    }).catch(function(err) {
+      hideSendProgress();
+      showToast('Send failed: ' + err.message, 'error');
+    });
+  }
+
+  function sendSelected() {
+    var payload = getComposePayload();
+    if (!payload.subject) {
+      showToast('Please enter a subject.', 'error');
+      return;
+    }
+    startSendProgress();
+    callServer('sendCampaign', payload, true).then(function(result) {
+      hideSendProgress();
+      showToast('Sent to ' + result.sent + ' selected recipients!', 'success');
+    }).catch(function(err) {
+      hideSendProgress();
+      showToast('Send failed: ' + err.message, 'error');
+    });
+  }
+
+  function scheduleSend() {
+    var scheduleTime = document.getElementById('schedule-time').value;
+    if (!scheduleTime) {
+      showToast('Please select a date and time.', 'error');
+      return;
+    }
+    var payload = getComposePayload();
+    if (!payload.subject) {
+      showToast('Please enter a subject.', 'error');
+      return;
+    }
+    callServer('scheduleSend', payload, scheduleTime).then(function() {
+      showToast('Campaign scheduled!', 'success');
+    }).catch(function(err) {
+      showToast('Scheduling failed: ' + err.message, 'error');
+    });
+  }
+
+  function startSendProgress() {
+    var overlay = document.getElementById('progress-overlay');
+    overlay.classList.add('visible');
+    document.getElementById('progress-fill').style.width = '0%';
+    document.getElementById('progress-status').textContent = 'Starting...';
+  }
+
+  function hideSendProgress() {
+    document.getElementById('progress-overlay').classList.remove('visible');
+  }
+
+  function updateSendProgress(sent, total) {
+    var pct = total > 0 ? Math.round((sent / total) * 100) : 0;
+    document.getElementById('progress-fill').style.width = pct + '%';
+    document.getElementById('progress-status').textContent = sent + ' / ' + total + ' sent';
+  }
+
+  // ───── Dashboard Functions ─────
+  function loadCampaigns() {
+    callServer('getCampaignList').then(function(campaigns) {
+      var select = document.getElementById('campaign-select');
+      // Keep the first default option
+      select.innerHTML = '<option value="">Select a campaign...</option>';
+      if (!campaigns || campaigns.length === 0) {
+        document.getElementById('dashboard-empty').classList.remove('hidden');
+        document.getElementById('dashboard-content').classList.add('hidden');
+        return;
+      }
+      document.getElementById('dashboard-empty').classList.add('hidden');
+      campaigns.forEach(function(c) {
+        var opt = document.createElement('option');
+        opt.value = c.campaignId;
+        var dateStr = c.date instanceof Date ? c.date.toLocaleDateString() : String(c.date || '');
+        opt.textContent = (c.campaignName || 'Unnamed') + ' (' + dateStr + ')';
+        select.appendChild(opt);
+      });
+      // Auto-select if we had a previous selection
+      if (state.selectedCampaignId) {
+        select.value = state.selectedCampaignId;
+        loadCampaignData(state.selectedCampaignId);
+      }
+    }).catch(function(err) {
+      showToast('Failed to load campaigns: ' + err.message, 'error');
+    });
+  }
+
+  function loadCampaignData(campaignId) {
+    if (!campaignId) {
+      document.getElementById('dashboard-content').classList.add('hidden');
+      return;
+    }
+    state.selectedCampaignId = campaignId;
+    document.getElementById('dashboard-content').classList.remove('hidden');
+
+    callServer('getCampaignStats', campaignId).then(function(stats) {
+      renderStats(stats);
+      renderChart(stats);
+    }).catch(function(err) {
+      showToast('Failed to load stats: ' + err.message, 'error');
+    });
+
+    callServer('getCampaignRecipients', campaignId).then(function(recipients) {
+      renderRecipients(recipients);
+    }).catch(function(err) {
+      console.error('Failed to load recipients:', err);
+    });
+  }
+
+  function renderStats(stats) {
+    document.getElementById('stat-sent').textContent = stats.sent || 0;
+    document.getElementById('stat-opens').textContent = stats.opens || 0;
+    document.getElementById('stat-clicks').textContent = stats.clicks || 0;
+    document.getElementById('stat-bounces').textContent = stats.bounces || 0;
+
+    var total = stats.sent || 1;
+    document.getElementById('stat-opens-pct').textContent = Math.round((stats.opens / total) * 100) + '%';
+    document.getElementById('stat-clicks-pct').textContent = Math.round((stats.clicks / total) * 100) + '%';
+    document.getElementById('stat-bounces-pct').textContent = Math.round((stats.bounces / total) * 100) + '%';
+  }
+
+  function renderChart(stats) {
+    var total = stats.sent || 1;
+    var openPct = Math.round((stats.opens / total) * 100);
+    var clickPct = Math.round((stats.clicks / total) * 100);
+    var bouncePct = Math.round((stats.bounces / total) * 100);
+
+    document.getElementById('bar-opens').style.width = openPct + '%';
+    document.getElementById('bar-opens-val').textContent = openPct + '%';
+    document.getElementById('bar-clicks').style.width = clickPct + '%';
+    document.getElementById('bar-clicks-val').textContent = clickPct + '%';
+    document.getElementById('bar-bounces').style.width = bouncePct + '%';
+    document.getElementById('bar-bounces-val').textContent = bouncePct + '%';
+  }
+
+  function renderRecipients(recipients) {
+    var tbody = document.getElementById('recipient-table-body');
+    if (!recipients || recipients.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary);padding:16px;">No recipients</td></tr>';
+      return;
+    }
+    var html = '';
+    recipients.forEach(function(r) {
+      // Derive display status from tracking data
+      var displayStatus = 'Sent';
+      var badgeClass = 'badge-sent';
+      if (r.bounced || r.sendStatus === 'Bounced') {
+        displayStatus = 'Bounced';
+        badgeClass = 'badge-bounced';
+      } else if (r.clicks > 0) {
+        displayStatus = 'Clicked';
+        badgeClass = 'badge-clicked';
+      } else if (r.opens > 0) {
+        displayStatus = 'Opened';
+        badgeClass = 'badge-opened';
+      } else if (r.sendStatus === 'Failed') {
+        displayStatus = 'Failed';
+        badgeClass = 'badge-bounced';
+      }
+
+      var lastAct = r.lastActivity;
+      if (lastAct instanceof Date) lastAct = lastAct.toLocaleString();
+      else if (!lastAct) lastAct = '-';
+
+      html += '<tr>'
+        + '<td title="' + escapeHtml(r.email) + '">' + escapeHtml(r.email) + '</td>'
+        + '<td><span class="badge ' + badgeClass + '">' + displayStatus + '</span></td>'
+        + '<td>' + (r.opens || 0) + '</td>'
+        + '<td>' + (r.clicks || 0) + '</td>'
+        + '<td>' + escapeHtml(String(lastAct)) + '</td>'
+        + '</tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  function refreshDashboard() {
+    if (state.selectedCampaignId) {
+      loadCampaignData(state.selectedCampaignId);
+      showToast('Dashboard refreshed.', 'info');
+    }
+  }
+
+  function exportCsv() {
+    if (!state.selectedCampaignId) return;
+    callServer('exportCampaignCsv', state.selectedCampaignId).then(function(csvData) {
+      // Trigger browser download
+      var blob = new Blob([csvData], { type: 'text/csv' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'campaign-export.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('CSV exported.', 'success');
+    }).catch(function(err) {
+      showToast('Export failed: ' + err.message, 'error');
+    });
+  }
+
+  // ───── Template Functions ─────
+  function loadTemplates() {
+    callServer('getTemplates').then(function(templates) {
+      var container = document.getElementById('template-list');
+      var emptyEl = document.getElementById('templates-empty');
+
+      if (!templates || templates.length === 0) {
+        container.innerHTML = '';
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+
+      var html = '';
+      templates.forEach(function(t) {
+        html += '<div class="template-card">'
+          + '<div class="template-info">'
+          + '<div class="template-name">' + escapeHtml(t.name) + '</div>'
+          + '<div class="template-subject">' + escapeHtml(t.subject || 'No subject') + '</div>'
+          + '<div class="template-date">' + escapeHtml(t.createdDate || '') + '</div>'
+          + '</div>'
+          + '<div class="template-actions">'
+          + '<button class="btn btn-secondary btn-sm" onclick="loadTemplate(\'' + escapeJs(t.name) + '\')">Load</button>'
+          + '<button class="btn btn-danger btn-sm" onclick="deleteTemplate(\'' + escapeJs(t.name) + '\')">Delete</button>'
+          + '</div>'
+          + '</div>';
+      });
+      container.innerHTML = html;
+    }).catch(function(err) {
+      showToast('Failed to load templates: ' + err.message, 'error');
+    });
+  }
+
+  function saveCurrentTemplate() {
+    var name = prompt('Template name:');
+    if (!name || !name.trim()) return;
+
+    var payload = getComposePayload();
+    callServer('saveTemplate', name.trim(), payload.subject, payload.body).then(function() {
+      showToast('Template saved!', 'success');
+      loadTemplates();
+    }).catch(function(err) {
+      showToast('Failed to save: ' + err.message, 'error');
+    });
+  }
+
+  function loadTemplate(name) {
+    callServer('loadTemplate', name).then(function(template) {
+      if (template) {
+        document.getElementById('email-subject').value = template.subject || '';
+        document.getElementById('email-body').innerHTML = template.bodyHtml || '';
+        showToast('Template loaded.', 'success');
+        switchTab('compose');
+      }
+    }).catch(function(err) {
+      showToast('Failed to load template: ' + err.message, 'error');
+    });
+  }
+
+  function deleteTemplate(name) {
+    showModal('Delete Template', '<p>Are you sure you want to delete <strong>' + escapeHtml(name) + '</strong>?</p>', [
+      { label: 'Cancel', type: 'secondary', action: 'closeModal()' },
+      { label: 'Delete', type: 'danger', action: 'confirmDeleteTemplate(\'' + escapeJs(name) + '\')' }
+    ]);
+  }
+
+  function confirmDeleteTemplate(name) {
+    closeModal();
+    callServer('deleteTemplate', name).then(function() {
+      showToast('Template deleted.', 'success');
+      loadTemplates();
+    }).catch(function(err) {
+      showToast('Failed to delete: ' + err.message, 'error');
+    });
+  }
+
+  // ───── Settings Functions ─────
+  function loadSettings() {
+    callServer('getSettings').then(function(settings) {
+      if (!settings) return;
+      document.getElementById('throttle-delay').value = settings.throttleDelay || 2;
+      document.getElementById('throttle-value').textContent = (settings.throttleDelay || 2) + 's';
+      document.getElementById('open-tracking').checked = settings.trackOpens !== false;
+      document.getElementById('click-tracking').checked = settings.trackClicks !== false;
+      document.getElementById('reply-to').value = settings.replyTo || '';
+      document.getElementById('default-cc').value = settings.defaultCc || '';
+      document.getElementById('default-bcc').value = settings.defaultBcc || '';
+    }).catch(function(err) {
+      console.error('Failed to load settings:', err);
+    });
+  }
+
+  function saveSettingsForm() {
+    var settings = {
+      throttleDelay: parseInt(document.getElementById('throttle-delay').value, 10),
+      trackOpens: document.getElementById('open-tracking').checked,
+      trackClicks: document.getElementById('click-tracking').checked,
+      replyTo: document.getElementById('reply-to').value.trim(),
+      defaultCc: document.getElementById('default-cc').value.trim(),
+      defaultBcc: document.getElementById('default-bcc').value.trim()
+    };
+
+    callServer('saveSettings', settings).then(function() {
+      showToast('Settings saved.', 'success');
+    }).catch(function(err) {
+      showToast('Failed to save settings: ' + err.message, 'error');
+    });
+  }
+
+  // ───── Rich Text Editor ─────
+  function execCommand(command, value) {
+    document.getElementById('email-body').focus();
+    document.execCommand(command, false, value || null);
+  }
+
+  function insertLink() {
+    var url = prompt('Enter URL:');
+    if (url) {
+      document.getElementById('email-body').focus();
+      document.execCommand('createLink', false, url);
+    }
+  }
+
+  // ───── Modal ─────
+  function showModal(title, content, buttons) {
+    var overlay = document.getElementById('modal-overlay');
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-body').innerHTML = content;
+
+    var footer = document.getElementById('modal-footer');
+    if (buttons && buttons.length > 0) {
+      var html = '';
+      buttons.forEach(function(b) {
+        html += '<button class="btn btn-' + b.type + '" onclick="' + b.action + '">' + b.label + '</button>';
+      });
+      footer.innerHTML = html;
+      footer.classList.remove('hidden');
+    } else {
+      footer.classList.add('hidden');
+    }
+
+    overlay.classList.add('visible');
+  }
+
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('visible');
+  }
+
+  // ───── Utility ─────
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function escapeJs(str) {
+    if (!str) return '';
+    return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  }
+
+  // ───── Initialise ─────
+  document.addEventListener('DOMContentLoaded', function() {
+    // Attach tab click handlers
+    document.querySelectorAll('.tab-bar button').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        switchTab(this.getAttribute('data-tab'));
+      });
+    });
+
+    // Load initial data for compose tab
+    switchTab('compose');
+  });
+</script>

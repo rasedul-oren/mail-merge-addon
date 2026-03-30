@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mail Merge Add-on for Google Sheets</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1a1a2e; line-height: 1.6; }
+    a { color: #0f9d58; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .hero {
+      background: linear-gradient(135deg, #0f9d58 0%, #0b8043 100%);
+      color: #fff;
+      padding: 5rem 2rem 4rem;
+      text-align: center;
+    }
+    .hero h1 { font-size: 2.5rem; margin-bottom: 1rem; }
+    .hero p { font-size: 1.15rem; max-width: 620px; margin: 0 auto 2rem; opacity: 0.92; }
+    .hero .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.2);
+      padding: 0.35rem 1rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .features {
+      max-width: 960px;
+      margin: -2.5rem auto 0;
+      padding: 0 1.5rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.5rem;
+    }
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 2rem 1.5rem;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .card h3 { margin-bottom: 0.5rem; font-size: 1.1rem; }
+    .card p { font-size: 0.95rem; color: #555; }
+    .card .icon { font-size: 1.6rem; margin-bottom: 0.75rem; }
+
+    .section {
+      max-width: 720px;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+    }
+    .section h2 { font-size: 1.6rem; margin-bottom: 1rem; }
+    .section ol { padding-left: 1.25rem; }
+    .section li { margin-bottom: 0.6rem; }
+    .section code {
+      background: #f4f4f4;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 2.5rem 1.5rem;
+      background: #f9f9f9;
+      border-top: 1px solid #eee;
+      font-size: 0.9rem;
+      color: #666;
+    }
+    footer a { font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <section class="hero">
+    <div class="badge">Google Apps Script Add-on</div>
+    <h1>Mail Merge for Google Sheets</h1>
+    <p>Send personalised emails at scale directly from Google Sheets — with open &amp; click tracking, templates, bounce detection, and a built-in dashboard.</p>
+  </section>
+
+  <div class="features">
+    <div class="card">
+      <div class="icon">&#9993;</div>
+      <h3>Personalised Bulk Email</h3>
+      <p>Merge any spreadsheet column into your email. Send hundreds of tailored messages in one go.</p>
+    </div>
+    <div class="card">
+      <div class="icon">&#128200;</div>
+      <h3>Open &amp; Click Tracking</h3>
+      <p>Track who opened your email and which links they clicked — all logged back into your sheet.</p>
+    </div>
+    <div class="card">
+      <div class="icon">&#128196;</div>
+      <h3>Reusable Templates</h3>
+      <p>Save and manage email templates with merge fields. Switch between templates effortlessly.</p>
+    </div>
+    <div class="card">
+      <div class="icon">&#128203;</div>
+      <h3>Live Dashboard</h3>
+      <p>See delivery stats, open rates, and bounce counts at a glance from the sidebar.</p>
+    </div>
+    <div class="card">
+      <div class="icon">&#128274;</div>
+      <h3>Bounce Detection</h3>
+      <p>Automatically flags bounced emails so you can keep your list clean and deliverability high.</p>
+    </div>
+    <div class="card">
+      <div class="icon">&#9881;</div>
+      <h3>Simple Setup</h3>
+      <p>Install with <code>clasp push</code>, refresh your sheet, and you're ready. No external services required.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Quick Start</h2>
+    <ol>
+      <li>Clone this repository and install <a href="https://github.com/google/clasp">clasp</a>.</li>
+      <li>Run <code>clasp login</code> and connect to your Google account.</li>
+      <li>Create a Google Sheet, open its Apps Script editor, and copy the Script ID.</li>
+      <li>Run <code>clasp clone YOUR_SCRIPT_ID</code> then <code>clasp push</code>.</li>
+      <li>Deploy as a Web App for tracking support.</li>
+      <li>Refresh your sheet — the <strong>Mail Merge</strong> menu appears automatically.</li>
+    </ol>
+  </div>
+
+  <footer>
+    Built by <a href="https://www.orennow.com/" target="_blank" rel="noopener">Oren</a> &mdash; ESG &amp; Sustainability Consulting
+  </footer>
+
+</body>
+</html>
